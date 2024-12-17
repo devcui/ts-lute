@@ -1,8 +1,8 @@
 import { HtmlNode, HtmlNodeTypeEnum } from "./html_node.ts";
 import { HtmlWhitespace } from "./html_parse.ts";
-import { TrimLeft } from "./util_trim.ts";
-
-export const HtmlQuirkyIDs = [
+import { StringTrimLeft } from "./util_trim.ts";
+import { IndexAny } from "./util_index.ts";
+export const HtmlQuirksIDs = [
   "+//silmaril//dtd html pro v0r11 19970101//",
   "-//advasoft ltd//dtd html 3.0 aswedit + extensions//",
   "-//as//dtd html 3.0 aswedit + extensions//",
@@ -62,57 +62,49 @@ export const HtmlQuirkyIDs = [
 
 export type HtmlParseDoctypeResult = {
   node: HtmlNode;
-  quirky: boolean;
+  quirks: boolean;
 };
 
-export function HtmlParseDoctype(str: string): HtmlParseDoctypeResult {
-  const n = new HtmlNode(HtmlNodeTypeEnum.DoctypeNode);
-  let quirky = false;
+export function HtmlParseDoctype(doc: string): HtmlParseDoctypeResult {
+  const node = new HtmlNode(HtmlNodeTypeEnum.DoctypeNode);
+  let quirks = false;
 
-  // Find the name.
-  let space = str.search(HtmlWhitespace);
-  console.log(`space: ${space}`);
+  let space = IndexAny(doc, HtmlWhitespace);
+
   if (space === -1) {
-    space = str.length;
-    console.log(`space adjusted: ${space}`);
+    space = doc.length;
   }
-  n.Data = str.substring(0, space);
-  // The comparison to "html" is case-sensitive.
-  if (n.Data !== "html") {
-    quirky = true;
+  node.Data = doc.substring(0, space);
+  if (node.Data != "html") {
+    quirks = true;
   }
-  n.Data = n.Data.toLowerCase();
-  str = TrimLeft(str.substring(space), HtmlWhitespace);
-  console.log(`str after TrimLeft: ${str}`);
-
-  if (str.length < 6) {
-    // It can't start with "PUBLIC" or "SYSTEM".
-    // Ignore the rest of the string.
-    return { node: n, quirky: quirky || str !== "" };
+  node.Data = node.Data.toLowerCase();
+  doc = StringTrimLeft(doc.substring(space, doc.length), HtmlWhitespace);
+  if (doc.length < 6) {
+    return { node, quirks: quirks || doc !== "" };
   }
-
-  let key = str.substring(0, 6).toLowerCase();
-  str = str.substring(6);
+  let key = doc.substring(0, 6).toLowerCase();
+  doc = doc.substring(6, doc.length);
   while (key === "public" || key === "system") {
-    str = TrimLeft(str, HtmlWhitespace);
-    if (str === "") {
+    doc = StringTrimLeft(doc, HtmlWhitespace);
+    if (doc === "") {
       break;
     }
-    const quote = str[0];
-    if (quote !== '"' && quote !== "'") {
+    const quote = doc[0];
+    if (quote != '"' && quote != "'") {
       break;
     }
-    str = str.substring(1);
-    const q = str.indexOf(quote);
-    let id;
+    doc = doc.substring(1, doc.length);
+    const q = doc.indexOf(quote);
+    let id: string;
     if (q === -1) {
-      id = str;
-      str = "";
+      id = doc;
+      doc = "";
     } else {
-      id = str.substring(0, q);
-      str = str.substring(q + 1);
+      id = doc.substring(0, q);
+      doc = doc.substring(q + 1, doc.length);
     }
-    n.Attr.push({ Key: key, Val: id });
+    node.Attr.push({ Key: key, Val: id });
     if (key === "public") {
       key = "system";
     } else {
@@ -120,43 +112,41 @@ export function HtmlParseDoctype(str: string): HtmlParseDoctypeResult {
     }
   }
 
-  if (key !== "" || str !== "") {
-    quirky = true;
-  } else if (n.Attr.length > 0) {
-    if (n.Attr[0].Key === "public") {
-      const publicID = n.Attr[0].Val.toLowerCase();
-      switch (publicID) {
+  if (key !== "" || doc !== "") {
+    quirks = true;
+  } else if (node.Attr.length > 0) {
+    if (node.Attr[0].Key === "public") {
+      const publicId = node.Attr[0].Val.toLowerCase();
+      switch (publicId) {
         case "-//w3o//dtd w3 html strict 3.0//en//":
         case "-/w3d/dtd html 4.0 transitional/en":
         case "html":
-          quirky = true;
+          quirks = true;
           break;
         default:
-          for (const qid of HtmlQuirkyIDs) {
-            if (publicID.startsWith(qid)) {
-              quirky = true;
+          for (const q of HtmlQuirksIDs) {
+            if (publicId.startsWith(q)) {
+              quirks = true;
               break;
             }
           }
       }
       // The following two public IDs only cause quirks mode if there is no system ID.
       if (
-        n.Attr.length === 1 &&
-        (publicID.startsWith("-//w3c//dtd html 4.01 frameset//") ||
-          publicID.startsWith("-//w3c//dtd html 4.01 transitional//"))
+        node.Attr.length === 1 &&
+        (publicId.startsWith("-//w3c//dtd html 4.01 frameset//") ||
+          publicId.startsWith("-//w3c//dtd html 4.01 transitional//"))
       ) {
-        quirky = true;
+        quirks = true;
       }
     }
-    const lastAttr = n.Attr[n.Attr.length - 1];
     if (
-      lastAttr.Key === "system" &&
-      lastAttr.Val.toLowerCase() ===
+      node.Attr[node.Attr.length - 1].Key === "system" &&
+      node.Attr[node.Attr.length - 1].Val.toLowerCase() ===
         "http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd"
     ) {
-      quirky = true;
+      quirks = true;
     }
   }
-
-  return { node: n, quirky: quirky };
+  return { node, quirks };
 }

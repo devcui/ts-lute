@@ -99,11 +99,10 @@ Deno.test("HtmlParseDoctype should parse various doctypes", () => {
 
   for (const { input, expected, quirks } of tests) {
     const result = HtmlParseDoctype(input);
-    console.log(`Input: ${input}`);
-    console.log(`Result Data: ${result.node.Data}`);
-    console.log(`Result Quirky: ${result.quirky}`);
+    console.log(`input: ${input}, expected: ${expected}, quirks: ${quirks}`);
+    console.log(`result: ${result.node.Data}, quirks: ${result.quirks}`);
     assertEquals(result.node.Type, HtmlNodeTypeEnum.DoctypeNode);
     assertEquals(result.node.Data, expected);
-    assertEquals(result.quirky, quirks);
+    assertEquals(result.quirks, quirks);
   }
 });

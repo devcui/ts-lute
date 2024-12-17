@@ -1,4 +1,10 @@
-export function TrimLeft(s: string, cutset: string): string {
-  const regex = new RegExp(`^[${cutset}]+`);
-  return s.replace(regex, '');
+export function StringTrimLeft(s: string, cutset: string): string {
+  if (s === "" || cutset === "") {
+    return s;
+  }
+  let start = 0;
+  while (start < s.length && cutset.includes(s[start])) {
+    start++;
+  }
+  return s.slice(start);
 }

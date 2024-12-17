@@ -13,7 +13,6 @@ import {
 } from "./html_node.ts";
 import { assertThrows } from "@std/assert/throws";
 import { assert } from "@std/assert/assert";
-import { HtmlAtom } from "./html_atom.ts";
 
 Deno.test("Unlink", () => {
   // 创建节点

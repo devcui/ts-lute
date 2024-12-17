@@ -47,7 +47,7 @@ export class HtmlTokenType {
 export const ErrBufferExceeded = new Error(" Max Buffer Exceeded");
 
 export class HtmlAttribute {
-  Namespace: string = "";
+  Namespace?: string = "";
   Key: string = "";
   Val: string = "";
 }

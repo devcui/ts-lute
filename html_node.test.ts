@@ -9,7 +9,7 @@ import {
   HtmlNodeStackContains,
   HtmlNodeStackInsert,
   HtmlNodeStackRemove,
-  HtmlNodeTypeVal
+  HtmlNodeTypeEnum
 } from "./html_node.ts";
 import { assertThrows } from "@std/assert/throws";
 import { assert } from "@std/assert/assert";
@@ -298,7 +298,7 @@ Deno.test("ReparentChildren", () => {
 Deno.test("Clone", () => {
   // 创建节点
   const node = new HtmlNode();
-  node.Type = HtmlNodeTypeVal.ElementNode;
+  node.Type = HtmlNodeTypeEnum.ElementNode;
   node.Data = "div";
   node.Attr = [{ Key: "class", Val: "container", Namespace: "test" }];
 

@@ -1,3 +1,6 @@
+
+export const HtmlWhitespace = " \t\r\n\f"
+
 export class HtmlParser {
     
 }

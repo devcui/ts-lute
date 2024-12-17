@@ -4,7 +4,7 @@ import { HtmlAttribute } from "./html_token.ts";
 
 export type HtmlNodeType = number;
 
-export enum HtmlNodeTypeVal {
+export enum HtmlNodeTypeEnum {
   ErrorNode = 0,
   TextNode,
   ElementNode,
@@ -212,7 +212,7 @@ export function HtmlNodeReparentChildren(dst: HtmlNode, src: HtmlNode): void {
   }
 }
 
-export const ScopeMarker = new HtmlNode(HtmlNodeTypeVal.ScopeMarkerNode);
+export const ScopeMarker = new HtmlNode(HtmlNodeTypeEnum.ScopeMarkerNode);
 
 export type HtmlInsertionModeStack = HtmlInsertionMode[];
 

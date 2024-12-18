@@ -94,7 +94,9 @@ export function HtmlUnescapeString(s: string): string {
   return s;
 }
 
-export function HtmlUnescape(b: Bytes, attribute: boolean): Uint8Array {
+export function HtmlUnescape(b: Bytes, attribute: boolean): Bytes {
+  const decoder = new TextDecoder();
+  console.log(decoder.decode(b));
   for (let i = 0; i < b.length; i++) {
     if (b[i] === "&".charCodeAt(0)) {
       let { dst, src } = HtmlUnescapeEntity(b, i, i, attribute);
@@ -116,12 +118,15 @@ export function HtmlUnescape(b: Bytes, attribute: boolean): Uint8Array {
   return b;
 }
 
+// FIXME: This function is not working as expected.
 export function HtmlUnescapeEntity(
-  bytes: Uint8Array,
+  bytes: Bytes,
   dst: number,
   src: number,
   attribute: boolean,
 ): { dst: number; src: number } {
+  const decoder = new TextDecoder();
+  console.log(decoder.decode(bytes));
   let i = 1;
   const s = bytes.slice(src);
 

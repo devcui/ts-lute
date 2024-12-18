@@ -1,3 +1,5 @@
+export const HtmlLongestEntityWithoutSemicolon = 6
+
 export const HtmlEntities: { [key: string]: string } = {
   "AElig;": "\u00C6",
   "AMP;": "\u0026",

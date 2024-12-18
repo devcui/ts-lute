@@ -1,10 +1,11 @@
 import { Buffer } from "@std/io/buffer";
 import { Bytes } from "./types.ts";
 import { IndexAny } from "./util_index.ts";
+import { HtmlEntities } from "./html_entity.ts";
 
 export const HtmlEscapedChars = "&'<>\"\r";
 export const HtmlReplacementTable: Array<string> = [
-  "\u20AC", // First entry is what 0x80 should be replaced with.
+  "\u20AC",
   "\u0081",
   "\u201A",
   "\u0192",
@@ -35,9 +36,7 @@ export const HtmlReplacementTable: Array<string> = [
   "\u0153",
   "\u009D",
   "\u017E",
-  "\u0178", // Last entry is 0x9F.
-  // 0x00->'\uFFFD' is handled programmatically.
-  // 0x0D->'\u000D' is a no-op
+  "\u0178",
 ];
 
 export function HtmlEscapeString(s: string): string {
@@ -60,7 +59,6 @@ export function HtmlEscape(buffer: Buffer, s: string): void {
         esc = "&amp;";
         break;
       case "'":
-        // "&#39;" is shorter than "&apos;" and apos was not in HTML until HTML5.
         esc = "&#39;";
         break;
       case "<":
@@ -70,7 +68,6 @@ export function HtmlEscape(buffer: Buffer, s: string): void {
         esc = "&gt;";
         break;
       case '"':
-        // "&#34;" is shorter than "&quot;".
         esc = "&#34;";
         break;
       case "\r":
@@ -79,12 +76,10 @@ export function HtmlEscape(buffer: Buffer, s: string): void {
       default:
         throw new Error("unrecognized escape character");
     }
-
     s = s.slice(i + 1);
     buffer.write(encoder.encode(esc));
     i = IndexAny(s, HtmlEscapedChars);
   }
-
   buffer.write(encoder.encode(s));
 }
 
@@ -121,38 +116,122 @@ export function HtmlUnescape(b: Bytes, attribute: boolean): Uint8Array {
   return b;
 }
 
-// unescapeEntity reads an entity like "&lt;" from b[src:] and writes the
-// corresponding "<" to b[dst:], returning the incremented dst and src cursors.
-// Precondition: b[src] == '&' && dst <= src.
-// attribute should be true if parsing an attribute value.
 export function HtmlUnescapeEntity(
-  bytes: Bytes,
+  bytes: Uint8Array,
   dst: number,
   src: number,
   attribute: boolean,
-): {
-  dst: number;
-  src: number;
-} {
-  // https://html.spec.whatwg.org/multipage/syntax.html#consume-a-character-reference
+): { dst: number; src: number } {
+  let i = 1;
+  const s = bytes.slice(src);
 
-  // i starts at 1 because we already know that s[0] == '&'.
-  const index = 1;
-  const newBytes = bytes.slice(src, bytes.length);
-  if (newBytes.length <= 1) {
+  if (s.length <= 1) {
     bytes[dst] = bytes[src];
     return { dst: dst + 1, src: src + 1 };
   }
 
-  return { dst, src };
-}
+  if (s[i] === "#".charCodeAt(0)) {
+    if (s.length <= 3) {
+      bytes[dst] = bytes[src];
+      return { dst: dst + 1, src: src + 1 };
+    }
+    i++;
+    let c = s[i];
+    let hex = false;
+    if (c === "x".charCodeAt(0) || c === "X".charCodeAt(0)) {
+      hex = true;
+      i++;
+    }
 
-export function HtmlLower(b: Bytes): Uint8Array {
-  for (let i = 0; i < b.length; i++) {
-    const c = b[i];
-    if ("A".charCodeAt(0) <= c && c <= "Z".charCodeAt(0)) {
-      b[i] = c + "a".charCodeAt(0) - "A".charCodeAt(0);
+    let x = 0;
+    while (i < s.length) {
+      c = s[i];
+      i++;
+      if (hex) {
+        if ("0".charCodeAt(0) <= c && c <= "9".charCodeAt(0)) {
+          x = 16 * x + c - "0".charCodeAt(0);
+          continue;
+        } else if ("a".charCodeAt(0) <= c && c <= "f".charCodeAt(0)) {
+          x = 16 * x + c - "a".charCodeAt(0) + 10;
+          continue;
+        } else if ("A".charCodeAt(0) <= c && c <= "F".charCodeAt(0)) {
+          x = 16 * x + c - "A".charCodeAt(0) + 10;
+          continue;
+        }
+      } else if ("0".charCodeAt(0) <= c && c <= "9".charCodeAt(0)) {
+        x = 10 * x + c - "0".charCodeAt(0);
+        continue;
+      }
+      if (c !== ";".charCodeAt(0)) {
+        i--;
+      }
+      break;
+    }
+
+    if (i <= 3) {
+      bytes[dst] = bytes[src];
+      return { dst: dst + 1, src: src + 1 };
+    }
+
+    if (0x80 <= x && x <= 0x9F) {
+      x = HtmlReplacementTable[x - 0x80].charCodeAt(0);
+    } else if (x === 0 || (0xD800 <= x && x <= 0xDFFF) || x > 0x10FFFF) {
+      x = 0xFFFD;
+    }
+
+    const encoded = new TextEncoder().encode(String.fromCodePoint(x));
+    bytes.set(encoded, dst);
+    return { dst: dst + encoded.length, src: src + i };
+  }
+
+  for (i = 1; i < s.length; i++) {
+    const c = s[i];
+    if (
+      ("a".charCodeAt(0) <= c && c <= "z".charCodeAt(0)) ||
+      ("A".charCodeAt(0) <= c && c <= "Z".charCodeAt(0)) ||
+      ("0".charCodeAt(0) <= c && c <= "9".charCodeAt(0))
+    ) {
+      continue;
+    }
+    if (c !== ";".charCodeAt(0)) {
+      i--;
+    }
+    break;
+  }
+
+  const max = i < 1 ? 1 : i;
+  const entityName = new TextDecoder().decode(s.slice(1, max));
+  if (entityName === "") {
+    // No-op.
+  } else if (
+    attribute &&
+    entityName[entityName.length - 1] !== ";" &&
+    s.length > i &&
+    s[i] === "=".charCodeAt(0)
+  ) {
+    // No-op.
+  } else if (HtmlEntities[entityName]) {
+    const encoded = new TextEncoder().encode(HtmlEntities[entityName]);
+    bytes.set(encoded, dst);
+    return { dst: dst + encoded.length, src: src + i };
+  } else if (!attribute) {
+    let maxLen = entityName.length - 1;
+    if (maxLen > 6) {
+      maxLen = 6;
+    }
+    for (let j = maxLen; j > 1; j--) {
+      if (HtmlEntities[entityName.slice(0, j)]) {
+        const encoded = new TextEncoder().encode(
+          HtmlEntities[entityName.slice(0, j)],
+        );
+        bytes.set(encoded, dst);
+        return { dst: dst + encoded.length, src: src + j + 1 };
+      }
     }
   }
-  return b;
+
+  const dst1 = dst + i;
+  const src1 = src + i;
+  bytes.set(bytes.slice(src, src1), dst);
+  return { dst: dst1, src: src1 };
 }

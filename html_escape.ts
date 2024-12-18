@@ -1,17 +1,84 @@
 import { Buffer } from "@std/io/buffer";
+import { Bytes } from "./types.ts";
+import { IndexAny } from "./util_index.ts";
 
-export const HtmlEscapedChars = /[&'<>\"\r]/;
+export const HtmlReplacementTable: Array<string> = [
+  "\u20AC", // First entry is what 0x80 should be replaced with.
+  "\u0081",
+  "\u201A",
+  "\u0192",
+  "\u201E",
+  "\u2026",
+  "\u2020",
+  "\u2021",
+  "\u02C6",
+  "\u2030",
+  "\u0160",
+  "\u2039",
+  "\u0152",
+  "\u008D",
+  "\u017D",
+  "\u008F",
+  "\u0090",
+  "\u2018",
+  "\u2019",
+  "\u201C",
+  "\u201D",
+  "\u2022",
+  "\u2013",
+  "\u2014",
+  "\u02DC",
+  "\u2122",
+  "\u0161",
+  "\u203A",
+  "\u0153",
+  "\u009D",
+  "\u017E",
+  "\u0178", // Last entry is 0x9F.
+  // 0x00->'\uFFFD' is handled programmatically.
+  // 0x0D->'\u000D' is a no-op
+];
 
-export function HtmlEscape(w: Buffer, s: string): void {
-  let i = s.search(HtmlEscapedChars);
+// unescapeEntity reads an entity like "&lt;" from b[src:] and writes the
+// corresponding "<" to b[dst:], returning the incremented dst and src cursors.
+// Precondition: b[src] == '&' && dst <= src.
+// attribute should be true if parsing an attribute value.
+export function HtmlUnescapeEntity(
+  bytes: Bytes,
+  dst: number,
+  src: number,
+  attribute: boolean,
+): {
+  dst: number;
+  src: number;
+} {
+  // https://html.spec.whatwg.org/multipage/syntax.html#consume-a-character-reference
+
+  // i starts at 1 because we already know that s[0] == '&'.
+  const index = 1;
+  const newBytes = bytes.slice(src, bytes.length);
+  if (newBytes.length <= 1) {
+    bytes[dst] = bytes[src];
+    return { dst: dst + 1, src: src + 1 };
+  }
+
+  return { dst, src };
+}
+
+export const HtmlEscapedChars = "&'<>\"\r";
+
+export function HtmlEscape(buffer: Buffer, s: string): void {
+  let i = IndexAny(s, HtmlEscapedChars);
+  const encoder = new TextEncoder();
   while (i !== -1) {
-    w.writeSync(new TextEncoder().encode(s.slice(0, i)));
+    buffer.write(encoder.encode(s.slice(0, i)));
     let esc: string;
     switch (s[i]) {
       case "&":
         esc = "&amp;";
         break;
       case "'":
+        // "&#39;" is shorter than "&apos;" and apos was not in HTML until HTML5.
         esc = "&#39;";
         break;
       case "<":
@@ -21,6 +88,7 @@ export function HtmlEscape(w: Buffer, s: string): void {
         esc = "&gt;";
         break;
       case '"':
+        // "&#34;" is shorter than "&quot;".
         esc = "&#34;";
         break;
       case "\r":
@@ -29,9 +97,11 @@ export function HtmlEscape(w: Buffer, s: string): void {
       default:
         throw new Error("unrecognized escape character");
     }
-    w.writeSync(new TextEncoder().encode(esc));
+
     s = s.slice(i + 1);
-    i = s.search(HtmlEscapedChars);
+    buffer.write(encoder.encode(esc));
+    i = IndexAny(s, HtmlEscapedChars);
   }
-  w.writeSync(new TextEncoder().encode(s));
+
+  buffer.write(encoder.encode(s));
 }

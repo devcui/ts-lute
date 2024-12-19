@@ -1,55 +1,6 @@
 import { HtmlEscapeString, HtmlUnescapeString } from "./html_escape.ts";
 import { assertEquals } from "@std/assert/equals";
 
-interface UnescapeTest {
-  // The HTML text.
-  html: string;
-  // The unescaped text.
-  unescaped: string;
-}
-const unescapeTests: UnescapeTest[] = [
-  // Handle no entities.
-  {
-    html: "A\ttext\nstring",
-    unescaped: "A\ttext\nstring",
-  },
-  // Handle simple named entities.
-  {
-    html: "&amp; &gt; &lt;",
-    unescaped: "& > <",
-  },
-  // Handle hitting the end of the string.
-  {
-    html: "&amp &amp",
-    unescaped: "&amp &amp",
-  },
-  // Handle entities with two codepoints.
-  {
-    html: "text &gesl; blah",
-    unescaped: "text \u22db\ufe00 blah",
-  },
-  // Handle decimal numeric entities.
-  {
-    html: "Delta = &#916; ",
-    unescaped: "Delta = Δ ",
-  },
-  // Handle hexadecimal numeric entities.
-  {
-    html: "Lambda = &#x3bb; = &#X3Bb ",
-    unescaped: "Lambda = λ = λ ",
-  },
-  // Handle numeric early termination.
-  {
-    html: "&# &#x &#128;43 &copy; = &#169f = &#xa9",
-    unescaped: "&# &#x €43 © = ©f = ©",
-  },
-  // Handle numeric ISO-8859-1 entity replacements.
-  {
-    html: "Footnote&#x87;",
-    unescaped: "Footnote‡",
-  },
-];
-
 Deno.test("HtmlEscape should escape special characters", () => {
   const cases = [
     { input: "Hello & World", expected: "Hello &amp; World" },
@@ -68,7 +19,25 @@ Deno.test("HtmlEscape should escape special characters", () => {
 });
 
 Deno.test("HtmlUnescapeString should unescape special characters", () => {
-  unescapeTests.forEach(({  html, unescaped }) => {
-    assertEquals(HtmlUnescapeString(html),  unescaped);
+  const unescapeTests: { html: string; unescaped: string }[] = [
+    // Handle no entities.
+    { html: "A\ttext\nstring", unescaped: "A\ttext\nstring" },
+    // Handle simple named entities.
+    { html: "&amp; &gt; &lt;", unescaped: "& > <" },
+    // Handle hitting the end of the string.
+    { html: "&amp &amp", unescaped: "&amp &amp" },
+    // Handle entities with two codepoints.
+    { html: "text &gesl; blah", unescaped: "text \u22db\ufe00 blah" },
+    // Handle decimal numeric entities.
+    { html: "Delta = &#916; ", unescaped: "Delta = Δ " },
+    // Handle hexadecimal numeric entities.
+    { html: "Lambda = &#x3bb; = &#X3Bb ", unescaped: "Lambda = λ = λ " },
+    // Handle numeric early termination.
+    { html: "&# &#x &#128;43 &copy; = &#169f = &#xa9", unescaped: "&# &#x €43 © = ©f = ©" },
+    // Handle numeric ISO-8859-1 entity replacements.
+    { html: "Footnote&#x87;", unescaped: "Footnote‡" },
+  ];
+  unescapeTests.forEach(({ html, unescaped }) => {
+    assertEquals(HtmlUnescapeString(html), unescaped);
   });
 });

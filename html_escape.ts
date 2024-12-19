@@ -95,8 +95,6 @@ export function HtmlUnescapeString(s: string): string {
 }
 
 export function HtmlUnescape(b: Bytes, attribute: boolean): Bytes {
-  const decoder = new TextDecoder();
-  console.log(decoder.decode(b));
   for (let i = 0; i < b.length; i++) {
     if (b[i] === "&".charCodeAt(0)) {
       let { dst, src } = HtmlUnescapeEntity(b, i, i, attribute);
@@ -119,31 +117,31 @@ export function HtmlUnescape(b: Bytes, attribute: boolean): Bytes {
 }
 
 // FIXME: This function is not working as expected.
+
 export function HtmlUnescapeEntity(
-  bytes: Bytes,
+  bytes: Uint8Array,
   dst: number,
   src: number,
   attribute: boolean,
 ): { dst: number; src: number } {
-  const decoder = new TextDecoder();
-  console.log(decoder.decode(bytes));
   let i = 1;
   const s = bytes.slice(src);
+  const encoder = new TextEncoder();
 
   if (s.length <= 1) {
     bytes[dst] = bytes[src];
     return { dst: dst + 1, src: src + 1 };
   }
 
-  if (s[i] === "#".charCodeAt(0)) {
-    if (s.length <= 3) {
+  if (s[i] === 35) { // ASCII code for '#'
+    if (s.length <= 3) { // We need to have at least "&#."
       bytes[dst] = bytes[src];
       return { dst: dst + 1, src: src + 1 };
     }
     i++;
     let c = s[i];
     let hex = false;
-    if (c === "x".charCodeAt(0) || c === "X".charCodeAt(0)) {
+    if (c === 120 || c === 88) { // ASCII codes for 'x' and 'X'
       hex = true;
       i++;
     }
@@ -153,70 +151,68 @@ export function HtmlUnescapeEntity(
       c = s[i];
       i++;
       if (hex) {
-        if ("0".charCodeAt(0) <= c && c <= "9".charCodeAt(0)) {
-          x = 16 * x + c - "0".charCodeAt(0);
+        if (48 <= c && c <= 57) { // ASCII codes for '0' to '9'
+          x = 16 * x + c - 48;
           continue;
-        } else if ("a".charCodeAt(0) <= c && c <= "f".charCodeAt(0)) {
-          x = 16 * x + c - "a".charCodeAt(0) + 10;
+        } else if (97 <= c && c <= 102) { // ASCII codes for 'a' to 'f'
+          x = 16 * x + c - 97 + 10;
           continue;
-        } else if ("A".charCodeAt(0) <= c && c <= "F".charCodeAt(0)) {
-          x = 16 * x + c - "A".charCodeAt(0) + 10;
+        } else if (65 <= c && c <= 70) { // ASCII codes for 'A' to 'F'
+          x = 16 * x + c - 65 + 10;
           continue;
         }
-      } else if ("0".charCodeAt(0) <= c && c <= "9".charCodeAt(0)) {
-        x = 10 * x + c - "0".charCodeAt(0);
+      } else if (48 <= c && c <= 57) { // ASCII codes for '0' to '9'
+        x = 10 * x + c - 48;
         continue;
       }
-      if (c !== ";".charCodeAt(0)) {
+      if (c !== 59) { // ASCII code for ';'
         i--;
       }
       break;
     }
 
-    if (i <= 3) {
+    if (i <= 3) { // No characters matched.
       bytes[dst] = bytes[src];
       return { dst: dst + 1, src: src + 1 };
     }
 
-    if (0x80 <= x && x <= 0x9F) {
-      x = HtmlReplacementTable[x - 0x80].charCodeAt(0);
-    } else if (x === 0 || (0xD800 <= x && x <= 0xDFFF) || x > 0x10FFFF) {
-      x = 0xFFFD;
+    if (128 <= x && x <= 159) {
+      // Replace characters from Windows-1252 with UTF-8 equivalents.
+      x = HtmlReplacementTable[x - 128].charCodeAt(0);
+    } else if (x === 0 || (55296 <= x && x <= 57343) || x > 1114111) {
+      // Replace invalid characters with the replacement character.
+      x = 65533; // Unicode replacement character
     }
 
-    const encoded = new TextEncoder().encode(String.fromCodePoint(x));
+    const encoded = encoder.encode(String.fromCodePoint(x));
     bytes.set(encoded, dst);
     return { dst: dst + encoded.length, src: src + i };
   }
 
-  for (i = 1; i < s.length; i++) {
+  // Consume the maximum number of characters possible, with the
+  // consumed characters matching one of the named references.
+
+  while (i < s.length) {
     const c = s[i];
-    if (
-      ("a".charCodeAt(0) <= c && c <= "z".charCodeAt(0)) ||
-      ("A".charCodeAt(0) <= c && c <= "Z".charCodeAt(0)) ||
-      ("0".charCodeAt(0) <= c && c <= "9".charCodeAt(0))
-    ) {
+    i++;
+    // Lower-cased characters are more common in entities, so we check for them first.
+    if ((97 <= c && c <= 122) || (65 <= c && c <= 90) || (48 <= c && c <= 57)) { // ASCII codes for 'a'-'z', 'A'-'Z', '0'-'9'
       continue;
     }
-    if (c !== ";".charCodeAt(0)) {
+    if (c !== 59) { // ASCII code for ';'
       i--;
     }
     break;
   }
 
   const max = i < 1 ? 1 : i;
-  const entityName = new TextDecoder().decode(s.slice(1, max));
+  const entityName = String.fromCharCode(...s.slice(1, max));
   if (entityName === "") {
     // No-op.
-  } else if (
-    attribute &&
-    entityName[entityName.length - 1] !== ";" &&
-    s.length > i &&
-    s[i] === "=".charCodeAt(0)
-  ) {
+  } else if (attribute && entityName[entityName.length - 1] !== ';' && s.length > i && s[i] === 61) { // ASCII code for '='
     // No-op.
   } else if (HtmlEntities[entityName]) {
-    const encoded = new TextEncoder().encode(HtmlEntities[entityName]);
+    const encoded = encoder.encode(HtmlEntities[entityName]);
     bytes.set(encoded, dst);
     return { dst: dst + encoded.length, src: src + i };
   } else if (!attribute) {
@@ -226,9 +222,7 @@ export function HtmlUnescapeEntity(
     }
     for (let j = maxLen; j > 1; j--) {
       if (HtmlEntities[entityName.slice(0, j)]) {
-        const encoded = new TextEncoder().encode(
-          HtmlEntities[entityName.slice(0, j)],
-        );
+        const encoded = encoder.encode(HtmlEntities[entityName.slice(0, j)]);
         bytes.set(encoded, dst);
         return { dst: dst + encoded.length, src: src + j + 1 };
       }

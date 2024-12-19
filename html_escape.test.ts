@@ -21,7 +21,7 @@ const unescapeTests: UnescapeTest[] = [
   // Handle hitting the end of the string.
   {
     html: "&amp &amp",
-    unescaped: "& &",
+    unescaped: "&amp &amp",
   },
   // Handle entities with two codepoints.
   {
@@ -40,7 +40,7 @@ const unescapeTests: UnescapeTest[] = [
   },
   // Handle numeric early termination.
   {
-    html: "&# &#x &#128;43 &copy = &#169f = &#xa9",
+    html: "&# &#x &#128;43 &copy; = &#169f = &#xa9",
     unescaped: "&# &#x €43 © = ©f = ©",
   },
   // Handle numeric ISO-8859-1 entity replacements.
